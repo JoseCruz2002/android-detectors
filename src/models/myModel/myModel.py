@@ -1,6 +1,7 @@
 from sklearn.utils._array_api import get_namespace
 from models.base import BaseDREBIN
 from sklearn.neural_network import MLPClassifier
+import numpy
 
 class MyModel(BaseDREBIN, MLPClassifier):
     
@@ -23,4 +24,4 @@ class MyModel(BaseDREBIN, MLPClassifier):
         scores_final = []
         for i in range(len(scores)):
             scores_final += [scores[i][labels[i]]]
-        return labels, scores_final
+        return labels, numpy.array(scores_final)
