@@ -110,3 +110,7 @@ class BaseDREBIN(BaseModel):
     @property
     def input_features(self):
         return self._input_features
+    
+    @property
+    def vectorizer(self):
+        return self._vectorizer
