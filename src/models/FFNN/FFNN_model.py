@@ -25,12 +25,15 @@ class FFNN(BaseDREBIN):
         #print(n_features)
         #FeedForwardNN(self, n_classes=2, n_features=n_features)
         self.model = FeedForwardNN(n_classes=2, n_features=1461078)
+        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Putting model in {DEVICE}")
+        self.model.to(DEVICE)
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), 
                                          lr=0.01,
                                          weight_decay=0)
         self.criterion = nn.CrossEntropyLoss()
-        self.batch_size = 75
+        self.batch_size = 300
         self.n_samples = 75000
 
     def _fit(self, X, y):
@@ -50,8 +53,14 @@ class FFNN(BaseDREBIN):
         criterion: loss function
         """
         self.model.train()
+
+        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Putting tensors in {DEVICE}")
         X_tensor = csr_matrix_to_sparse_tensor(X)
+        X_tensor.to(DEVICE)        
         y_tensor = torch.Tensor(y).type(torch.LongTensor)
+        y_tensor.to(DEVICE)
+
         self.optimizer.zero_grad()
         outputs = self.model(X_tensor)
         loss = self.criterion(outputs, y_tensor)
