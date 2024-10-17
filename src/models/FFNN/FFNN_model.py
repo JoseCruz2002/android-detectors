@@ -18,6 +18,9 @@ class FFNN(BaseDREBIN):
             features in the format <feature_type>::<feature_name>.
             This is necessary to know the number of features for the model.
         '''
+        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Putting everything in {DEVICE}")
+        self.device = DEVICE
         
         BaseDREBIN.__init__(self)
 
@@ -25,9 +28,7 @@ class FFNN(BaseDREBIN):
         #print(n_features)
         #FeedForwardNN(self, n_classes=2, n_features=n_features)
         self.model = FeedForwardNN(n_classes=2, n_features=1461078)
-        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Putting model in {DEVICE}")
-        self.model.to(DEVICE)
+        self.model = self.model.to(self.device)
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), 
                                          lr=0.01,
@@ -42,7 +43,6 @@ class FFNN(BaseDREBIN):
             loss = self.train_batch(X[batch*self.batch_size : batch*self.batch_size+self.batch_size, :],
                                     y[batch*self.batch_size : batch*self.batch_size+self.batch_size])
             print(f"batch number = {batch}; has loss = {loss}")
-            return
     
     def train_batch(self, X, y, **kwargs):
         """
@@ -54,12 +54,10 @@ class FFNN(BaseDREBIN):
         """
         self.model.train()
 
-        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Putting tensors in {DEVICE}")
         X_tensor = csr_matrix_to_sparse_tensor(X)
-        X_tensor.to(DEVICE)        
+        X_tensor = X_tensor.to(self.device)
         y_tensor = torch.Tensor(y).type(torch.LongTensor)
-        y_tensor.to(DEVICE)
+        y_tensor = y_tensor.to(self.device)
 
         self.optimizer.zero_grad()
         outputs = self.model(X_tensor)
@@ -90,7 +88,8 @@ class FFNN(BaseDREBIN):
             score of each test pattern with respect to the positive class.
         """
         X = self._vectorizer.transform(features)
-        scores = self.model(csr_matrix_to_sparse_tensor(X))  # (n_examples x n_classes)
+        X_tensor = csr_matrix_to_sparse_tensor(X).to(self.device)
+        scores = self.model(X_tensor)  # (n_examples x n_classes)
         predicted_labels = scores.argmax(dim=-1)  # (n_examples)
         return predicted_labels, scores.max(dim=1)[0]
 
