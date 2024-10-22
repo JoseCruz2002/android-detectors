@@ -27,7 +27,7 @@ class FFNN(BaseDREBIN):
         #self.n_samples, n_features = self._vectorizer.fit_transform(features).get_shape()
         #print(n_features)
         #FeedForwardNN(self, n_classes=2, n_features=n_features)
-        self.model = FeedForwardNN(n_classes=2, n_features=1461078)
+        self.model = FeedForwardNN.FeedForwardNN(n_classes=2, n_features=1461078)
         self.model = self.model.to(self.device)
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), 
@@ -124,11 +124,20 @@ class FFNN(BaseDREBIN):
 
     def load(self, vectorizer_path, classifier_path):
 
-        self.model.load_state_dict(torch.load(classifier_path, weights_only=True))
+        self.model.load_state_dict(torch.load(classifier_path, 
+                                              weights_only=False, 
+                                              map_location=torch.device(self.device)))
 
         with open(vectorizer_path, "rb") as f:
             self._vectorizer = pkl.load(f)
+
         return self
+
+    def set_input_features(self, features):
+        print(f"input_features = {self.input_features}")
+        if self.input_features == None:
+            self._vectorizer.fit_transform(features)
+            self._input_features = (self._vectorizer.get_feature_names_out().tolist())
 
 
 def csr_matrix_to_sparse_tensor(csr_matrix):
