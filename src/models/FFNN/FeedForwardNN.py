@@ -4,6 +4,7 @@ import torch.nn as nn
 
 class FeedForwardNN(nn.Module):
 
+    #def __init__(self, n_classes, n_features, hidden_size = 10, layers = 2, **kwargs):
     def __init__(self, n_classes, n_features, hidden_size = 150, layers = 3, **kwargs):
         '''
         n_classes: two, one for malware and other for goodware
@@ -11,6 +12,7 @@ class FeedForwardNN(nn.Module):
         hidden_size: number of neurons in the hidden layers
         hidden_layers: number of hidden layers on the NN 
         '''
+        print(f"hidden_size = {hidden_size}; layers = {layers}")
         super(FeedForwardNN, self).__init__()
         self.layers = nn.ModuleList()
         self.layers.append(nn.Linear(n_features, hidden_size))

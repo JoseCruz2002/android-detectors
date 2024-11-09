@@ -3,9 +3,15 @@ import torch
 import torch.nn as nn
 import numpy
 
+import subprocess
+import re
+
 import dill as pkl
+from scipy.sparse import csr_matrix
 
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import SMOTE
 from models.base import BaseDREBIN
 from models.FFNN import FeedForwardNN
 
@@ -18,7 +24,7 @@ class FFNN(BaseDREBIN):
             features in the format <feature_type>::<feature_name>.
             This is necessary to know the number of features for the model.
         '''
-        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+        DEVICE = get_free_gpu() if torch.cuda.is_available() else "cpu"
         print(f"Putting everything in {DEVICE}")
         self.device = DEVICE
         
@@ -33,17 +39,62 @@ class FFNN(BaseDREBIN):
         self.optimizer = torch.optim.SGD(self.model.parameters(), 
                                          lr=0.01,
                                          weight_decay=0)
+        weight_ = torch.tensor([0.9, 0.1])
+        weight_ = weight_.to(self.device)
+        #self.criterion = nn.CrossEntropyLoss(weight=weight_) # This is to try to mitigate the effects of class imbalance
         self.criterion = nn.CrossEntropyLoss()
-        self.batch_size = 300
+        self.batch_size = 30
         self.n_samples = 75000
 
     def _fit(self, X, y):
-        print(f"X.shape = {X.shape}")
+        #self.normal_training(X, y)
+        self.fifty_fifty_rationed_training(X, y)
+        #self.only_malware_training(X, y)
+
+    def only_malware_training(self, X, y):
+        print("Only malware training")
+        self.n_samples //= 10 # only malware apks
+        malware_pos = []
+        for i in range(y.shape[0]):
+            malware_pos += [i] if y[i] == 1 else []
+        print(len(malware_pos))
         for batch in range(self.n_samples // self.batch_size):
-            loss = self.train_batch(X[batch*self.batch_size : batch*self.batch_size+self.batch_size, :],
-                                    y[batch*self.batch_size : batch*self.batch_size+self.batch_size])
+            row_indices = malware_pos[batch*self.batch_size : (batch+1)*self.batch_size]
+            input_ = X[row_indices]
+            labels = numpy.array(list(1 for _ in range(self.batch_size)))
+            print(f"shape of input = {input_.shape}")
+            print(f"shape of labels = {labels.shape}")
+            loss = self.train_batch(input_, labels)
             print(f"batch number = {batch}; has loss = {loss}")
+
+    def fifty_fifty_rationed_training(self, X, y):
+        print("Fifty-fifty training with class balancing")
+        sm = SMOTE(sampling_strategy="minority", random_state=42, n_jobs=1)
+        X_smote, y_smote = sm.fit_resample(X, y)
+        X, y = self.stratified_downsample(X_smote, y_smote, self.n_samples)
+        print(f"X_smote shape = {X.shape}")
+        print(f"y_smote shape = {y.shape}")
+        print(f"Amount of malware = {numpy.count_nonzero(y)}")
+        print(f"Amount of goodware = {y.shape[0]-numpy.count_nonzero(y)}")
+        self.normal_training(X, y)
+
+    def stratified_downsample(self, X, y, n_samples):
+        assert X.shape[0] == y.shape[0]
+        print(n_samples / X.shape[0])
+        X_train, _, y_train, _ = train_test_split(
+                X, y, test_size=1 - (n_samples / X.shape[0]), random_state=42)
+        return X_train, y_train
     
+    def normal_training(self, X, y):
+        print("Normal training")
+        for batch in range(self.n_samples // self.batch_size):
+            input_ = X[batch*self.batch_size : (batch+1)*self.batch_size, :]
+            labels = y[batch*self.batch_size : (batch+1)*self.batch_size]
+            print(f"shape of input = {input_.shape}")
+            print(f"shape of labels = {labels.shape},\nlabels: {labels}")
+            loss = self.train_batch(input_, labels)
+            print(f"batch number = {batch}; has loss = {loss}")
+
     def train_batch(self, X, y, **kwargs):
         """
         X (n_examples x n_features)
@@ -52,9 +103,10 @@ class FFNN(BaseDREBIN):
         optimizer: optimizer used in gradient step
         criterion: loss function
         """
+        assert X.shape[0] == y.shape[0]
         self.model.train()
 
-        X_tensor = csr_matrix_to_sparse_tensor(X)
+        X_tensor = csr_matrix_to_sparse_tensor(X)#.to_dense()
         X_tensor = X_tensor.to(self.device)
         y_tensor = torch.Tensor(y).type(torch.LongTensor)
         y_tensor = y_tensor.to(self.device)
@@ -87,6 +139,7 @@ class FFNN(BaseDREBIN):
             Array of shape (n_samples,) with classification
             score of each test pattern with respect to the positive class.
         """
+        self.model.eval()
         X = self._vectorizer.transform(features)
         X_tensor = csr_matrix_to_sparse_tensor(X).to(self.device)
         scores = self.model(X_tensor)  # (n_examples x n_classes)
@@ -136,7 +189,7 @@ class FFNN(BaseDREBIN):
     def set_input_features(self, features):
         print(f"input_features = {self.input_features}")
         if self.input_features == None:
-            self._vectorizer.fit_transform(features)
+            self._vectorizer.transform(features)
             self._input_features = (self._vectorizer.get_feature_names_out().tolist())
 
 
@@ -148,3 +201,19 @@ def csr_matrix_to_sparse_tensor(csr_matrix):
     v = torch.FloatTensor(values)
     shape = coo_matrix.shape
     return torch.sparse_coo_tensor(i, v, torch.Size(shape))
+
+def get_free_gpu():
+    try:
+        # Run nvidia-smi and get the GPU memory usage
+        nvidia_smi_output = subprocess.check_output(["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,nounits,noheader"]).decode("utf-8")
+        # Parse the output
+        memory_usage = [line.strip().split(",") for line in nvidia_smi_output.strip().split("\n")]
+        memory_usage = [(int(used), int(total)) for used, total in memory_usage]
+
+        # Find GPU with maximum available memory
+        free_memory = [(total - used, i) for i, (used, total) in enumerate(memory_usage)]
+        best_gpu = max(free_memory, key=lambda x: x[0])[1]
+        return best_gpu
+    except Exception as e:
+        print("Error finding the best GPU:", e)
+        return None
