@@ -3,7 +3,7 @@ from models.base import BaseDREBIN
 from sklearn.svm import LinearSVC
 
 
-class DREBIN(BaseDREBIN, LinearSVC):
+class DREBIN(BaseDREBIN):
     """
     Implements the DREBIN classifier from:
       Arp, Daniel, et al. "Drebin: Effective and explainable detection of
@@ -44,24 +44,24 @@ class DREBIN(BaseDREBIN, LinearSVC):
             The maximum number of iterations to be run.
         """
         BaseDREBIN.__init__(self)
-        self.model = LinearSVC.__init__(
-            self, tol=tol, C=C, fit_intercept=False, class_weight=class_weight,
+        self.svc = LinearSVC(
+            tol=tol, C=C, fit_intercept=False, class_weight=class_weight,
             verbose=verbose, random_state=random_state, max_iter=max_iter)
 
     def _fit(self, X, y):
-        self.model.fit(self, X, y)
+        self.svc.fit(X, y)
     
     def predict(self, features):
         X = self._vectorizer.transform(features)
         xp, _ = get_namespace(X)
-        scores = self.decision_function(X)
+        scores = self.svc.decision_function(X)
         if len(scores.shape) == 1:
             indices = xp.astype(scores > 0, int)
         else:
             indices = xp.argmax(scores, axis=1)
 
-        return xp.take(self.classes_, indices, axis=0), scores
+        return xp.take(self.svc.classes_, indices, axis=0), scores
     
-    def get_svc_model(self):
+    def get_model(self):
         """Return the LinearSVC instance for ONNX conversion."""
-        return self.model
+        return self.svc

@@ -7,21 +7,24 @@ class MyModel(BaseDREBIN, MLPClassifier):
     
     def __init__(self):
         BaseDREBIN.__init__(self)
-        MLPClassifier.__init__(self,
-                               hidden_layer_sizes=[10, 5],
-                               activation='relu', 
-                               solver='sgd',
-                               batch_size=16)
+        self.MLP = MLPClassifier(hidden_layer_sizes=[10, 5],
+                                 activation='relu', 
+                                 solver='sgd',
+                                 batch_size=16)
 
     def _fit(self, X, y):
-        MLPClassifier._fit(self, X, y)
+        self.MLP.fit(X, y)
 
     def predict(self, features):
         X = self._vectorizer.transform(features)
-        labels = MLPClassifier.predict(self, X)
+        labels = self.MLP.predict(X)
         #scores = self.decision_function(X)
-        scores = MLPClassifier.predict_proba(self, X)
+        scores = self.MLP.predict_proba(X)
         scores_final = []
         for i in range(len(scores)):
             scores_final += [scores[i][labels[i]]]
         return labels, numpy.array(scores_final)
+    
+    def get_model(self):
+        """Return the MLPClassifier instance for ONNX conversion."""
+        return self.MLP
