@@ -32,23 +32,23 @@ class FFNN(BaseDREBIN):
 
         #self.n_samples, n_features = self._vectorizer.fit_transform(features).get_shape()
         #print(n_features)
-        #FeedForwardNN(self, n_classes=2, n_features=n_features)
         self.model = FeedForwardNN.FeedForwardNN(n_classes=2, n_features=1461078)
         self.model = self.model.to(self.device)
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), 
                                          lr=0.01,
                                          weight_decay=0)
-        weight_ = torch.tensor([0.9, 0.1])
+        weight_ = torch.tensor([0.1, 0.9])
         weight_ = weight_.to(self.device)
-        #self.criterion = nn.CrossEntropyLoss(weight=weight_) # This is to try to mitigate the effects of class imbalance
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(weight=weight_) # This is to try to mitigate the effects of class imbalance
+        #self.criterion = nn.CrossEntropyLoss()
         self.batch_size = 30
         self.n_samples = 75000
 
     def _fit(self, X, y):
-        #self.normal_training(X, y)
-        self.fifty_fifty_rationed_training(X, y)
+        print(f"Which cuda is the model in? {next(self.model.parameters()).device}")
+        self.normal_training(X, y)
+        #self.fifty_fifty_rationed_training(X, y)
         #self.only_malware_training(X, y)
 
     def only_malware_training(self, X, y):
@@ -180,6 +180,7 @@ class FFNN(BaseDREBIN):
         self.model.load_state_dict(torch.load(classifier_path, 
                                               weights_only=False, 
                                               map_location=torch.device(self.device)))
+        self.model.to(self.device)
 
         with open(vectorizer_path, "rb") as f:
             self._vectorizer = pkl.load(f)
