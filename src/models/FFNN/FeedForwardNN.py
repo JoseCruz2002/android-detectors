@@ -4,8 +4,9 @@ import torch.nn as nn
 
 class FeedForwardNN(nn.Module):
 
-    def __init__(self, n_classes, n_features, hidden_size = 10, layers = 2, **kwargs):
+    #def __init__(self, n_classes, n_features, hidden_size = 10, layers = 2, **kwargs):
     #def __init__(self, n_classes, n_features, hidden_size = 150, layers = 3, **kwargs):
+    def __init__(self, n_classes, n_features, hidden_size, layers, **kwargs):
         '''
         n_classes: two, one for malware and other for goodware
         n_features: size of input
