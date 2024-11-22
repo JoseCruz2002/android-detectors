@@ -5,6 +5,7 @@ import numpy
 
 import subprocess
 import re
+import time
 
 import dill as pkl
 from scipy.sparse import csr_matrix
@@ -17,13 +18,22 @@ from models.FFNN import FeedForwardNN
 
 class FFNN(BaseDREBIN):
 
-    def __init__(self, hidden_size, layers, features=[]):
+    def __init__(self, training="normal", structure="small", use_CEL=False, CEL_weight_pos_class=0.1, 
+                 CEL_weight_neg_class=0.9, dense=False, features=[]):
         '''
         features: iterable of iterables of strings
             Iterable of shape (n_samples, n_features) containing textual
             features in the format <feature_type>::<feature_name>.
             This is necessary to know the number of features for the model.
         '''
+        print(f"Model parameters:\n\
+              training: {training}\n\
+              structure: {structure}\n\
+              use_CEL: {use_CEL}\n\
+                CEL_weight_pos_class: {CEL_weight_pos_class}\n\
+                CEL_weight_neg_class: {CEL_weight_neg_class}\n\
+              dense: {dense}")
+
         DEVICE = get_free_gpu() if torch.cuda.is_available() else "cpu"
         print(f"Putting everything in {DEVICE}")
         self.device = DEVICE
@@ -32,6 +42,7 @@ class FFNN(BaseDREBIN):
 
         #self.n_samples, n_features = self._vectorizer.fit_transform(features).get_shape()
         #print(n_features)
+        hidden_size, layers = (10, 2) if structure == "small" else (150, 3)
         self.model = FeedForwardNN.FeedForwardNN(n_classes=2, n_features=1461078,
                                                  hidden_size=hidden_size, layers=layers)
         self.model = self.model.to(self.device)
@@ -39,18 +50,29 @@ class FFNN(BaseDREBIN):
         self.optimizer = torch.optim.SGD(self.model.parameters(), 
                                          lr=0.01,
                                          weight_decay=0)
-        weight_ = torch.tensor([0.1, 0.9])
-        weight_ = weight_.to(self.device)
-        self.criterion = nn.CrossEntropyLoss(weight=weight_) # This is to try to mitigate the effects of class imbalance
-        #self.criterion = nn.CrossEntropyLoss()
+        
+        if use_CEL:
+            weight_ = torch.tensor([CEL_weight_pos_class, CEL_weight_neg_class]).to(self.device)
+            self.criterion = nn.CrossEntropyLoss(weight=weight_)
+        else: 
+            self.criterion = nn.CrossEntropyLoss()
+        
+        self.training = training
+        self.dense = dense
         self.batch_size = 30
         self.n_samples = 75000
 
+
     def _fit(self, X, y):
         print(f"Which cuda is the model in? {next(self.model.parameters()).device}")
-        self.normal_training(X, y)
-        #self.fifty_fifty_rationed_training(X, y)
-        #self.only_malware_training(X, y)
+        if self.training == "normal":
+            self.normal_training(X, y)
+        elif self.training == "ratioed":
+            self.fifty_fifty_rationed_training(X, y)
+        elif self.training == "only_mal":
+            self.only_malware_training(X, y)
+        else:
+            print(f"ERROR!! No training method -{self.training}- exists!")
 
     def only_malware_training(self, X, y):
         print("Only malware training")
@@ -59,6 +81,7 @@ class FFNN(BaseDREBIN):
         for i in range(y.shape[0]):
             malware_pos += [i] if y[i] == 1 else []
         print(len(malware_pos))
+        time.sleep(4)
         for batch in range(self.n_samples // self.batch_size):
             row_indices = malware_pos[batch*self.batch_size : (batch+1)*self.batch_size]
             input_ = X[row_indices]
@@ -77,6 +100,7 @@ class FFNN(BaseDREBIN):
         print(f"y_smote shape = {y.shape}")
         print(f"Amount of malware = {numpy.count_nonzero(y)}")
         print(f"Amount of goodware = {y.shape[0]-numpy.count_nonzero(y)}")
+        time.sleep(4)
         self.normal_training(X, y)
 
     def stratified_downsample(self, X, y, n_samples):
@@ -88,6 +112,7 @@ class FFNN(BaseDREBIN):
     
     def normal_training(self, X, y):
         print("Normal training")
+        time.sleep(4)
         for batch in range(self.n_samples // self.batch_size):
             input_ = X[batch*self.batch_size : (batch+1)*self.batch_size, :]
             labels = y[batch*self.batch_size : (batch+1)*self.batch_size]
@@ -107,7 +132,9 @@ class FFNN(BaseDREBIN):
         assert X.shape[0] == y.shape[0]
         self.model.train()
 
-        X_tensor = csr_matrix_to_sparse_tensor(X)#.to_dense()
+        X_tensor = csr_matrix_to_sparse_tensor(X)
+        if self.dense:
+            X_tensor = X_tensor.to_dense()
         X_tensor = X_tensor.to(self.device)
         y_tensor = torch.Tensor(y).type(torch.LongTensor)
         y_tensor = y_tensor.to(self.device)
@@ -143,7 +170,7 @@ class FFNN(BaseDREBIN):
         self.model.eval()
         X = self._vectorizer.transform(features)
         X_tensor = csr_matrix_to_sparse_tensor(X).to(self.device)
-        scores = self.model(X_tensor)  # (n_examples x n_classes)
+        scores = torch.nn.functional.softmax(self.model(X_tensor), dim=1)
         predicted_labels = scores.argmax(dim=-1)  # (n_examples)
         return predicted_labels, scores.max(dim=1)[0]
 
@@ -189,7 +216,7 @@ class FFNN(BaseDREBIN):
         return self
 
     def set_input_features(self, features):
-        print(f"input_features = {self.input_features}")
+        #print(f"input_features = {self.input_features}")
         if self.input_features == None:
             self._vectorizer.transform(features)
             self._input_features = (self._vectorizer.get_feature_names_out().tolist())
