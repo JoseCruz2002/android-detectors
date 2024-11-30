@@ -52,12 +52,16 @@ class FFNN(BaseDREBIN):
                                          weight_decay=0)
         
         if use_CEL:
+            self.CEL = True
+            self.CEL_weight_pos_class = CEL_weight_pos_class
+            self.CEL_weight_neg_class = CEL_weight_neg_class
             weight_ = torch.tensor([CEL_weight_pos_class, CEL_weight_neg_class]).to(self.device)
             self.criterion = nn.CrossEntropyLoss(weight=weight_)
         else: 
             self.criterion = nn.CrossEntropyLoss()
         
         self.training = training
+        self.structure = structure
         self.dense = dense
         self.batch_size = 30
         self.n_samples = 75000
@@ -112,6 +116,8 @@ class FFNN(BaseDREBIN):
     
     def normal_training(self, X, y):
         print("Normal training")
+        print(X[:2])
+        print(y[:2])
         time.sleep(4)
         for batch in range(self.n_samples // self.batch_size):
             input_ = X[batch*self.batch_size : (batch+1)*self.batch_size, :]
@@ -220,6 +226,12 @@ class FFNN(BaseDREBIN):
         if self.input_features == None:
             self._vectorizer.transform(features)
             self._input_features = (self._vectorizer.get_feature_names_out().tolist())
+        
+    def toString(self):
+        CEL_str = "CEL" + str(self.CEL_weight_pos_class).replace(".", "") + \
+                str(self.CEL_weight_neg_class).replace(".", "") if self.CEL else ""
+        dense_str = "dense" if self.dense else ""
+        return f"FFNN_{self.training}_{self.structure}_{CEL_str}_{dense_str}"
 
 
 def csr_matrix_to_sparse_tensor(csr_matrix):

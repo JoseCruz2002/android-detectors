@@ -7,7 +7,36 @@ from sklearn.metrics import roc_curve, auc, confusion_matrix, f1_score, \
     precision_score
 
 __all__ = ["load_features", "load_labels", "load_sha256_list", "plot_roc",
-           "get_metrics"]
+           "get_metrics", "load_samples_features"]
+
+
+def load_samples_features(features_path, labels_path, type_of_ware):
+    """
+    Parameters
+    ----------
+    features_path : str
+        Absolute path of the features compressed file.
+    labels_path : str
+        Absolute path of the data file (json or compressed csv) containing
+        the labels.
+    type_of_ware : int
+        If 0, then return all goodware samples, if 1, return all malware ones.
+    ----------
+    The training data is not divided with positive class on one file
+    and negative on the other.
+    """
+    with ZipFile(labels_path, "r", ZIP_DEFLATED) as z:
+        ds_csv = pd.concat(
+            [pd.read_csv(z.open(f))[["sha256", "label"]]
+             for f in z.namelist()], ignore_index=True)
+        labels_json = {k: v for k, v in zip(ds_csv.sha256.values,
+                                            ds_csv.label.values)}
+    with ZipFile(features_path, "r", ZIP_DEFLATED) as z:
+        for filename in z.namelist():
+            if labels_json[filename.split(".")[0].lower()] == type_of_ware:
+                with z.open(filename) as fp:
+                    js = json.load(fp)
+                    yield [f"{k}::{v}" for k in js for v in js[k] if js[k]]
 
 
 def load_features(features_path):
