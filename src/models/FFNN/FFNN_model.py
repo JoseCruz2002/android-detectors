@@ -63,8 +63,7 @@ class FFNN(BaseDREBIN):
         self.training = training
         self.structure = structure
         self.dense = dense
-        self.batch_size = 30
-        self.n_samples = 75000
+        self.batch_size = 20 if dense else 200
 
 
     def _fit(self, X, y):
@@ -80,7 +79,7 @@ class FFNN(BaseDREBIN):
 
     def only_malware_training(self, X, y):
         print("Only malware training")
-        self.n_samples //= 10 # only malware apks
+        self.n_samples = 7500 # only malware apks
         malware_pos = []
         for i in range(y.shape[0]):
             malware_pos += [i] if y[i] == 1 else []
@@ -97,6 +96,7 @@ class FFNN(BaseDREBIN):
 
     def fifty_fifty_rationed_training(self, X, y):
         print("Fifty-fifty training with class balancing")
+        self.n_samples = X.shape[0]
         sm = SMOTE(sampling_strategy="minority", random_state=42, n_jobs=1)
         X_smote, y_smote = sm.fit_resample(X, y)
         X, y = self.stratified_downsample(X_smote, y_smote, self.n_samples)
@@ -116,8 +116,7 @@ class FFNN(BaseDREBIN):
     
     def normal_training(self, X, y):
         print("Normal training")
-        print(X[:2])
-        print(y[:2])
+        self.n_samples = X.shape[0]
         time.sleep(4)
         for batch in range(self.n_samples // self.batch_size):
             input_ = X[batch*self.batch_size : (batch+1)*self.batch_size, :]

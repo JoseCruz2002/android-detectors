@@ -23,7 +23,7 @@ class BaseDREBIN(BaseModel):
             logging_level=logging.ERROR)
         self._input_features = None
 
-    def fit(self, features, y):
+    def fit(self, features, y, fit=True):
         """
 
         Parameters
@@ -34,7 +34,10 @@ class BaseDREBIN(BaseModel):
         y : np.ndarray
             Array of shape (n_samples,) containing the class labels.
         """
-        X = self._vectorizer.fit_transform(features)
+        if fit:
+            X = self._vectorizer.fit_transform(features)
+        else:
+            X = self._vectorizer.transform(features)
         self._input_features = (self._vectorizer.get_feature_names_out()
                                 .tolist())
         self._fit(X, y)
