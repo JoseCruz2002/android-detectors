@@ -118,7 +118,9 @@ class FFNN(BaseDREBIN):
         print("Normal training")
         self.n_samples = X.shape[0]
         time.sleep(4)
-        for batch in range(self.n_samples // self.batch_size):
+        rg = self.n_samples // self.batch_size if self.batch_size % self.n_samples == 0 else \
+                    self.n_samples // self.batch_size + 1
+        for batch in range(rg):
             input_ = X[batch*self.batch_size : (batch+1)*self.batch_size, :]
             labels = y[batch*self.batch_size : (batch+1)*self.batch_size]
             print(f"shape of input = {input_.shape}")
