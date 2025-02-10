@@ -53,6 +53,7 @@ class DREBIN(BaseDREBIN):
     
     def predict(self, features):
         X = self._vectorizer.transform(features)
+        #print(f"X shape in prediction: {X.shape}")
         xp, _ = get_namespace(X)
         scores = self.svc.decision_function(X)
         if len(scores.shape) == 1:

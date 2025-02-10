@@ -2,7 +2,9 @@ from sklearn.feature_extraction.text import CountVectorizer
 from models.base import BaseModel
 import dill as pkl
 from feature_extraction import DREBINFeatureExtractor
+from feature_selection import f_sel_methods
 import logging
+import json
 
 
 class BaseDREBIN(BaseModel):
@@ -23,7 +25,7 @@ class BaseDREBIN(BaseModel):
             logging_level=logging.ERROR)
         self._input_features = None
 
-    def fit(self, features, y, fit=True):
+    def fit(self, features, y, fit=True, feat_sel=False, args={}):
         """
 
         Parameters
@@ -40,6 +42,23 @@ class BaseDREBIN(BaseModel):
             X = self._vectorizer.transform(features)
         self._input_features = (self._vectorizer.get_feature_names_out()
                                 .tolist())
+
+        if feat_sel:
+            X, self._input_features = (f_sel_methods.feature_selection(X,
+                                            self._input_features, y, args))
+            self._vectorizer = CountVectorizer(
+                        input="content", lowercase=False,
+                        tokenizer=lambda x: x, binary=True, token_pattern=None,
+                        vocabulary=self._input_features)
+            self._vectorizer.fit(features)
+            self._input_features = self._input_features.tolist()
+
+            
+        print(f"shape of input: {X.shape}")
+        print(f"size of input_features list: {len(self._input_features)}")
+        #for el in self._input_features:
+            #print(el)
+        
         self._fit(X, y)
 
     def _fit(self, X, y):
