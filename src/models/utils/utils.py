@@ -1,13 +1,51 @@
 from zipfile import ZipFile, ZIP_DEFLATED
 import json
+import os
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
+from models import FFNN, MyModel, DREBIN, SecSVM
 from sklearn.metrics import roc_curve, auc, confusion_matrix, f1_score, \
     precision_score
 
 __all__ = ["load_features", "load_labels", "load_sha256_list", "plot_roc",
-           "get_metrics", "load_samples_features"]
+           "get_metrics", "load_samples_features", "parse_model"]
+
+def parse_model(classifier_str: str):
+    '''
+    Returns a tuple of three elements:
+        The classifier
+        The path to the classifier
+        The path to the vectorizer
+    '''
+    print(f"parsing model {classifier_str}")
+
+    model_base_path = os.path.join(os.path.dirname(__file__), "../../..")
+    file_extension = "pth" if "FFNN" in classifier_str else "pkl"
+    clf_path = os.path.join(model_base_path, f"pretrained/{classifier_str}_classifier.{file_extension}")
+    vect_path = os.path.join(model_base_path, f"pretrained/{classifier_str}_vectorizer.pkl")
+
+    if classifier_str == "MyModel":
+        classifier = MyModel()
+    elif classifier_str == "secsvm":
+        classifier = SecSVM(C=0.1, lb=-0.5, ub=0.5)
+    elif classifier_str == "drebin":
+        classifier = DREBIN(C=0.1)
+    elif "FFNN" in classifier_str:
+        aux = classifier_str.split("_")
+        training = aux[1]
+        structure = aux[2]
+        cel = True if "CEL" in classifier_str else False
+        cel_pos_class = float(aux[3][3:5])/10 if cel else 0
+        cel_neg_class = float(aux[3][5:])/10 if cel else 0
+        dense = True if "dense" in classifier_str else False
+        classifier = FFNN(training=training, structure=structure, use_CEL=cel,
+                      CEL_weight_pos_class=cel_pos_class, 
+                      CEL_weight_neg_class=cel_neg_class,
+                      dense=dense, features=[])
+    else:
+        raise ValueError(f"Error: {classifier_str} does not exist!")
+    return (classifier, clf_path, vect_path)
 
 
 def load_samples_features(features_path, labels_path, type_of_ware):

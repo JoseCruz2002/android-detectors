@@ -73,6 +73,19 @@ class BaseDREBIN(BaseModel):
             Array of shape (n_samples,) containing the class labels.
         """
         return NotImplemented
+    
+    def vectorizer_fit(self, X, transform=False):
+        """
+        Method to fit a model's vectorizer independently of actually training.
+        """
+        X_new = []
+        if transform:
+            X_new = self._vectorizer.fit_transform(X)
+        else:
+            self._vectorizer.fit(X)
+        self._input_features = (self._vectorizer.get_feature_names_out()
+                                .tolist())
+        return X_new
 
     def extract_features(self, apk_list):
         """
