@@ -17,10 +17,11 @@ class BaseDREBIN(BaseModel):
     method.
     """
 
-    def __init__(self):
+    def __init__(self, vocabulary=None):
         self._vectorizer = CountVectorizer(
             input="content", lowercase=False,
-            tokenizer=lambda x: x, binary=True, token_pattern=None)
+            tokenizer=lambda x: x, binary=True, token_pattern=None,
+            vocabulary=vocabulary)
         self._feat_extractor = DREBINFeatureExtractor(
             logging_level=logging.ERROR)
         self._input_features = None

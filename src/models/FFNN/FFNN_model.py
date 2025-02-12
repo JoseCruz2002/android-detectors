@@ -18,8 +18,9 @@ from models.FFNN import FeedForwardNN
 
 class FFNN(BaseDREBIN):
 
-    def __init__(self, training="normal", structure="small", use_CEL=False, CEL_weight_pos_class=0.1, 
-                 CEL_weight_neg_class=0.9, dense=False, features=[]):
+    def __init__(self, training="normal", structure="small", use_CEL=False,
+                 CEL_weight_pos_class=0.1,  CEL_weight_neg_class=0.9, dense=False,
+                 n_features=1461078, vocabulary=None):
         '''
         features: iterable of iterables of strings
             Iterable of shape (n_samples, n_features) containing textual
@@ -38,12 +39,10 @@ class FFNN(BaseDREBIN):
         print(f"Putting everything in {DEVICE}")
         self.device = DEVICE
         
-        BaseDREBIN.__init__(self)
+        BaseDREBIN.__init__(self, vocabulary)
 
-        #self.n_samples, n_features = self._vectorizer.fit_transform(features).get_shape()
-        #print(n_features)
         hidden_size, layers = (10, 2) if structure == "small" else (150, 3)
-        self.model = FeedForwardNN.FeedForwardNN(n_classes=2, n_features=1461078,
+        self.model = FeedForwardNN.FeedForwardNN(n_classes=2, n_features=n_features,
                                                  hidden_size=hidden_size, layers=layers)
         self.model = self.model.to(self.device)
 

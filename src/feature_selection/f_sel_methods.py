@@ -74,7 +74,7 @@ estimator_map = {
 def feat_selection_recursive(input, input_features, labels, estimator,
                              n_features_to_select):
     #estimator = estimator_map[estimator](kernel="linear")
-    estimator = SVR
+    estimator = estimator_map[estimator]
     selector = RFE(estimator, n_features_to_select=int(n_features_to_select))
     new_input = selector.fit_transform(input, labels)
     new_input_features = selector.get_feature_names_out(input_features)
@@ -88,7 +88,7 @@ def feat_selection_recursiveCV(input, input_features, labels, estimator,
         cv=StratifiedKFold(5),
         scoring="accuracy",
         min_features_to_select=int(min_features_to_select),
-        n_jobs=None,
+        n_jobs=4,
     )
     new_input = selector.fit_transform(input, labels)
     new_input_features = selector.get_feature_names_out(input_features)
