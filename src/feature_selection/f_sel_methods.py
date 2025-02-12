@@ -8,6 +8,7 @@ from sklearn.feature_selection import (SequentialFeatureSelector)
 
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import ExtraTreesClassifier
 
 __all__ = ["feature_selection"]
 
@@ -73,6 +74,11 @@ def feat_selection_univariate(input, input_features, labels, selection_type,
 
 estimator_map = {
     "SVR": SVR(kernel="linear"),
+    "TreeEnsemble": ExtraTreesClassifier(
+        n_estimators=100,
+        n_jobs=5,
+        random_state=42
+    )
 }
 
 def feat_selection_recursive(input, input_features, labels, estimator_str,
@@ -93,7 +99,7 @@ def feat_selection_recursiveCV(input, input_features, labels, estimator_str,
         cv=StratifiedKFold(5),
         scoring="accuracy",
         min_features_to_select=int(min_features_to_select),
-        n_jobs=4,
+        n_jobs=5,
     )
     new_input = selector.fit_transform(input, labels)
     new_input_features = selector.get_feature_names_out(input_features)
@@ -103,9 +109,14 @@ def feat_selection_recursiveCV(input, input_features, labels, estimator_str,
 # Using SelectFromModel Feature Selection
 ## -------------------------------------------------------------------------------- ##
 
-# L1-based Feature Selection
-
-# Tree-based Feature Selection
+def feat_selection_selectFromModel(input, input_features, labels, estimator_str,
+                                   max_features):
+    print("Starting feature selection: SelectFromModel")
+    estimator = estimator_map[estimator_str]
+    selector = SelectFromModel(estimator, max_features=int(max_features))
+    new_input = selector.fit_transform(input, labels)
+    new_input_features = selector.get_feature_names_out(input_features)
+    return (new_input, new_input_features)
 
 ## -------------------------------------------------------------------------------- ##
 # Sequential Feature Selection
@@ -118,7 +129,8 @@ def feat_selection_sequential(input, input_features, labels, estimator_str,
     selector = SequentialFeatureSelector(
         estimator,
         n_features_to_select=int(n_features_to_select),
-        direction=direction
+        direction=direction,
+        n_jobs=5
     )
     new_input = selector.fit_transform(input, labels)
     new_input_features = selector.get_feature_names_out(input_features)
@@ -142,7 +154,10 @@ def feature_selection(input, input_features, labels, args):
                                         args["estimator"], args["param"])
     elif args["feat_selection"] == "RecursiveCV":
         return feat_selection_recursiveCV(input, input_features, labels,
-                                        args["estimator"], args["param"])
+                                          args["estimator"], args["param"])
+    elif args["feat_selection"] == "SelectFromModel":
+        return feat_selection_selectFromModel(input, input_features, labels,
+                                              args["estimator"], args["param"])
     elif args["feat_selection"] == "Sequential":
         return feat_selection_sequential(input, input_features, labels,
                                          args["estimator"], args["direction"],
