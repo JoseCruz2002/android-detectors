@@ -2,10 +2,12 @@ from sklearn.feature_selection import VarianceThreshold
 from sklearn.feature_selection import (GenericUnivariateSelect, chi2,
                                        mutual_info_classif, f_classif)
 from sklearn.feature_selection import (RFE, RFECV)
-from sklearn.svm import SVR
 from sklearn.model_selection import StratifiedKFold
 from sklearn.feature_selection import (SelectFromModel)
 from sklearn.feature_selection import (SequentialFeatureSelector)
+
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsClassifier
 
 __all__ = ["feature_selection"]
 
@@ -23,6 +25,7 @@ def feat_selection_variance(input, input_features, p=0.8):
     Returns:
         (The input with only the selected features, The names of these last features)
     """
+    print("Starting feature selection: Variance threshold")
     selector = VarianceThreshold(threshold=(p * (1 - p)))
     new_input = selector.fit_transform(input)
     new_input_features = selector.get_feature_names_out(input_features)
@@ -52,6 +55,7 @@ def feat_selection_univariate(input, input_features, labels, selection_type,
     Returns:
         (The input with only the selected features, The names of these last features)
     """
+    print("Starting feature selection: Univariate")
     if selection_type not in ('percentile', 'k_best', 'fpr', 'fdr', 'fwe') or \
        selection_function not in ('chi2', 'mutual_info_classif', 'f_classif'):
         raise ValueError("Selection type or function were wrong!!")
@@ -68,22 +72,23 @@ def feat_selection_univariate(input, input_features, labels, selection_type,
 ## -------------------------------------------------------------------------------- ##
 
 estimator_map = {
-    "SVR": SVR(kernel="linear")
+    "SVR": SVR(kernel="linear"),
 }
 
-def feat_selection_recursive(input, input_features, labels, estimator,
+def feat_selection_recursive(input, input_features, labels, estimator_str,
                              n_features_to_select):
-    #estimator = estimator_map[estimator](kernel="linear")
-    estimator = estimator_map[estimator]
+    print("Starting feature selection: Recursive")
+    estimator = estimator_map[estimator_str]
     selector = RFE(estimator, n_features_to_select=int(n_features_to_select))
     new_input = selector.fit_transform(input, labels)
     new_input_features = selector.get_feature_names_out(input_features)
     return (new_input, new_input_features)
 
-def feat_selection_recursiveCV(input, input_features, labels, estimator,
+def feat_selection_recursiveCV(input, input_features, labels, estimator_str,
                                min_features_to_select):
+    print("Starting feature selection: Recursive with Cross-Validation")
     selector = RFECV(
-        estimator=estimator_map[estimator],
+        estimator=estimator_map[estimator_str],
         step=1,
         cv=StratifiedKFold(5),
         scoring="accuracy",
@@ -106,6 +111,20 @@ def feat_selection_recursiveCV(input, input_features, labels, estimator,
 # Sequential Feature Selection
 ## -------------------------------------------------------------------------------- ##
 
+def feat_selection_sequential(input, input_features, labels, estimator_str,
+                              direction, n_features_to_select):
+    print("Starting feature selection: Sequential")
+    estimator = estimator_map[estimator_str]
+    selector = SequentialFeatureSelector(
+        estimator,
+        n_features_to_select=int(n_features_to_select),
+        direction=direction
+    )
+    new_input = selector.fit_transform(input, labels)
+    new_input_features = selector.get_feature_names_out(input_features)
+    return (new_input, new_input_features)
+
+
 ## -------------------------------------------------------------------------------- ##
 # Callable
 ## -------------------------------------------------------------------------------- ##
@@ -124,5 +143,9 @@ def feature_selection(input, input_features, labels, args):
     elif args["feat_selection"] == "RecursiveCV":
         return feat_selection_recursiveCV(input, input_features, labels,
                                         args["estimator"], args["param"])
+    elif args["feat_selection"] == "Sequential":
+        return feat_selection_sequential(input, input_features, labels,
+                                         args["estimator"], args["direction"],
+                                         args["param"])
     else:
         raise ValueError (f"No fs method with the name: {args['feat_selection']}")
