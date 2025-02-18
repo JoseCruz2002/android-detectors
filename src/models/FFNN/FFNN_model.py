@@ -28,12 +28,13 @@ class FFNN(BaseDREBIN):
             This is necessary to know the number of features for the model.
         '''
         print(f"Model parameters:\n\
-              training: {training}\n\
-              structure: {structure}\n\
-              use_CEL: {use_CEL}\n\
-                CEL_weight_pos_class: {CEL_weight_pos_class}\n\
-                CEL_weight_neg_class: {CEL_weight_neg_class}\n\
-              dense: {dense}")
+                training: {training}\n\
+                structure: {structure}\n\
+                use_CEL: {use_CEL}\n\
+                  CEL_weight_pos_class: {CEL_weight_pos_class}\n\
+                  CEL_weight_neg_class: {CEL_weight_neg_class}\n\
+                dense: {dense}\n\
+                n_features: {n_features}")
 
         DEVICE = get_free_gpu() if torch.cuda.is_available() else "cpu"
         print(f"Putting everything in {DEVICE}")

@@ -11,7 +11,7 @@ from sklearn.metrics import roc_curve, auc, confusion_matrix, f1_score, \
 __all__ = ["load_features", "load_labels", "load_sha256_list", "plot_roc",
            "get_metrics", "load_samples_features", "parse_model"]
 
-def parse_model(classifier_str: str):
+def parse_model(classifier_str: str, n_features: int, vocab):
     '''
     Returns a tuple of three elements:
         The classifier
@@ -40,9 +40,9 @@ def parse_model(classifier_str: str):
         cel_neg_class = float(aux[3][5:])/10 if cel else 0
         dense = True if "dense" in classifier_str else False
         classifier = FFNN(training=training, structure=structure, use_CEL=cel,
-                      CEL_weight_pos_class=cel_pos_class, 
-                      CEL_weight_neg_class=cel_neg_class,
-                      dense=dense, features=[])
+                      CEL_weight_pos_class=cel_pos_class,
+                      CEL_weight_neg_class=cel_neg_class, dense=dense,
+                      n_features=n_features, vocabulary=vocab)
     else:
         raise ValueError(f"Error: {classifier_str} does not exist!")
     return (classifier, clf_path, vect_path)

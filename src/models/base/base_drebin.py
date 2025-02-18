@@ -86,6 +86,7 @@ class BaseDREBIN(BaseModel):
             self._vectorizer.fit(X)
         self._input_features = (self._vectorizer.get_feature_names_out()
                                 .tolist())
+        print(f"Number of input features: {len(self._input_features)}")
         return X_new
 
     def extract_features(self, apk_list):
