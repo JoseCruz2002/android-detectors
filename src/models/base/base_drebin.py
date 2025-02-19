@@ -5,7 +5,7 @@ from feature_extraction import DREBINFeatureExtractor
 from feature_selection import f_sel_methods
 import logging
 import json
-
+import torch
 
 class BaseDREBIN(BaseModel):
     """
@@ -26,7 +26,8 @@ class BaseDREBIN(BaseModel):
             logging_level=logging.ERROR)
         self._input_features = None
 
-    def fit(self, features, y, fit=True, feat_sel=False, args={}):
+    def fit(self, features, y, fit=True, feat_sel=False, FS_args={},
+            rand_smoothing=False, noise=0.0):
         """
 
         Parameters
@@ -46,7 +47,7 @@ class BaseDREBIN(BaseModel):
 
         if feat_sel:
             X, self._input_features = (f_sel_methods.feature_selection(X,
-                                            self._input_features, y, args))
+                                            self._input_features, y, FS_args))
             self._vectorizer = CountVectorizer(
                         input="content", lowercase=False,
                         tokenizer=lambda x: x, binary=True, token_pattern=None,
@@ -54,13 +55,12 @@ class BaseDREBIN(BaseModel):
             self._vectorizer.fit(features)
             self._input_features = self._input_features.tolist()
 
-            
         print(f"shape of input: {X.shape}")
         print(f"size of input_features list: {len(self._input_features)}")
         #for el in self._input_features:
             #print(el)
-        
-        self._fit(X, y)
+
+        self._fit(X, y, rand_smoothing, noise)
 
     def _fit(self, X, y):
         """

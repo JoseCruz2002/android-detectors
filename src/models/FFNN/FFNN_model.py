@@ -63,21 +63,21 @@ class FFNN(BaseDREBIN):
         self.training = training
         self.structure = structure
         self.dense = dense
-        self.batch_size = 20 if dense else 200
+        self.batch_size = 200
 
 
-    def _fit(self, X, y):
+    def _fit(self, X, y, rand_smoothing=False, noise=0.0):
         print(f"Which cuda is the model in? {next(self.model.parameters()).device}")
         if self.training == "normal":
-            self.normal_training(X, y)
+            self.normal_training(X, y, rand_smoothing, noise)
         elif self.training == "ratioed":
-            self.fifty_fifty_rationed_training(X, y)
+            self.fifty_fifty_rationed_training(X, y, rand_smoothing, noise)
         elif self.training == "only_mal":
-            self.only_malware_training(X, y)
+            self.only_malware_training(X, y, rand_smoothing, noise)
         else:
             print(f"ERROR!! No training method -{self.training}- exists!")
 
-    def only_malware_training(self, X, y):
+    def only_malware_training(self, X, y, rand_smoothing=False, noise=0.0):
         print("Only malware training")
         self.n_samples = 7500 # only malware apks
         malware_pos = []
@@ -94,7 +94,7 @@ class FFNN(BaseDREBIN):
             loss = self.train_batch(input_, labels)
             print(f"batch number = {batch}; has loss = {loss}")
 
-    def fifty_fifty_rationed_training(self, X, y):
+    def fifty_fifty_rationed_training(self, X, y, rand_smoothing=False, noise=0.0):
         print("Fifty-fifty training with class balancing")
         self.n_samples = X.shape[0]
         sm = SMOTE(sampling_strategy="minority", random_state=42, n_jobs=1)
@@ -114,7 +114,7 @@ class FFNN(BaseDREBIN):
                 X, y, test_size=1 - (n_samples / X.shape[0]), random_state=42)
         return X_train, y_train
     
-    def normal_training(self, X, y):
+    def normal_training(self, X, y, rand_smoothing=False, noise=0.0):
         print("Normal training")
         self.n_samples = X.shape[0]
         time.sleep(4)
@@ -125,10 +125,10 @@ class FFNN(BaseDREBIN):
             labels = y[batch*self.batch_size : (batch+1)*self.batch_size]
             print(f"shape of input = {input_.shape}")
             print(f"shape of labels = {labels.shape},\nlabels: {labels}")
-            loss = self.train_batch(input_, labels)
+            loss = self.train_batch(input_, labels, rand_smoothing, noise)
             print(f"batch number = {batch}; has loss = {loss}")
 
-    def train_batch(self, X, y, **kwargs):
+    def train_batch(self, X, y, rand_smoothing=False, noise=0.0, **kwargs):
         """
         X (n_examples x n_features)
         y (n_examples): gold labels
@@ -139,9 +139,19 @@ class FFNN(BaseDREBIN):
         assert X.shape[0] == y.shape[0]
         self.model.train()
 
-        X_tensor = csr_matrix_to_sparse_tensor(X)
-        if self.dense:
-            X_tensor = X_tensor.to_dense()
+        if rand_smoothing:
+            print("DOING RANDOMIZED SMOOTHING")
+            X_tensor = csr_matrix_to_sparse_csr_tensor(X)
+            if self.dense:
+                X_tensor = X_tensor.to_dense()
+            noise_to_add = torch.randn_like(X_tensor) * noise
+            X_tensor += noise_to_add
+        else:
+            X_tensor = csr_matrix_to_sparse_coo_tensor(X)
+            if self.dense:
+                X_tensor = X_tensor.to_dense()
+
+        print(f"Input tensor:\n{X_tensor}\n") 
         X_tensor = X_tensor.to(self.device)
         y_tensor = torch.Tensor(y).type(torch.LongTensor)
         y_tensor = y_tensor.to(self.device)
@@ -235,7 +245,7 @@ class FFNN(BaseDREBIN):
         return f"FFNN_{self.training}_{self.structure}_{CEL_str}_{dense_str}"
 
 
-def csr_matrix_to_sparse_tensor(csr_matrix):
+def csr_matrix_to_sparse_coo_tensor(csr_matrix):
     coo_matrix = csr_matrix.tocoo()
     values = coo_matrix.data
     indices = numpy.vstack((coo_matrix.row, coo_matrix.col))
@@ -243,6 +253,14 @@ def csr_matrix_to_sparse_tensor(csr_matrix):
     v = torch.FloatTensor(values)
     shape = coo_matrix.shape
     return torch.sparse_coo_tensor(i, v, torch.Size(shape))
+
+def csr_matrix_to_sparse_csr_tensor(csr_matrix):
+    """Converts a SciPy CSR matrix to a PyTorch sparse CSR tensor."""
+    values = torch.tensor(csr_matrix.data, dtype=torch.float32)
+    crow_indices = torch.tensor(csr_matrix.indptr, dtype=torch.int64)
+    col_indices = torch.tensor(csr_matrix.indices, dtype=torch.int64)
+    shape = csr_matrix.shape
+    return torch.sparse_csr_tensor(crow_indices, col_indices, values, size=shape)
 
 def get_free_gpu():
     try:

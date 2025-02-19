@@ -178,7 +178,7 @@ class SecSVM(BaseDREBIN, CClassifierSVM):
         """Objective function."""
         return 0.5 * self.w.dot(self.w.T) + self.C_hinge_loss(x, y).sum()
 
-    def _fit(self, X, y):
+    def _fit(self, X, y, rand_smoothing=False, noise=0.0):
 
         x = CArray(X).atleast_2d()
         y = CArray(y).ravel()

@@ -48,7 +48,7 @@ class DREBIN(BaseDREBIN):
             tol=tol, C=C, fit_intercept=False, class_weight=class_weight,
             verbose=verbose, random_state=random_state, max_iter=max_iter)
 
-    def _fit(self, X, y):
+    def _fit(self, X, y, rand_smoothing=False, noise=0.0):
         self.svc.fit(X, y)
     
     def predict(self, features):
