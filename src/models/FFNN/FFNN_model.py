@@ -186,7 +186,7 @@ class FFNN(BaseDREBIN):
         """
         self.model.eval()
         X = self._vectorizer.transform(features)
-        X_tensor = csr_matrix_to_sparse_tensor(X).to(self.device)
+        X_tensor = csr_matrix_to_sparse_coo_tensor(X).to(self.device)
         scores = torch.nn.functional.softmax(self.model(X_tensor), dim=1)
         predicted_labels = scores.argmax(dim=-1)  # (n_examples)
         return predicted_labels, scores.max(dim=1)[0]
