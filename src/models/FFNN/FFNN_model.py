@@ -20,7 +20,7 @@ class FFNN(BaseDREBIN):
 
     def __init__(self, training="normal", structure="small", use_CEL=False,
                  CEL_weight_pos_class=0.1,  CEL_weight_neg_class=0.9, dense=False,
-                 n_features=1461078, vocabulary=None):
+                 n_features=1461078, vocabulary=None, use_rand_smoothing=False):
         '''
         features: iterable of iterables of strings
             Iterable of shape (n_samples, n_features) containing textual
@@ -34,7 +34,8 @@ class FFNN(BaseDREBIN):
                   CEL_weight_pos_class: {CEL_weight_pos_class}\n\
                   CEL_weight_neg_class: {CEL_weight_neg_class}\n\
                 dense: {dense}\n\
-                n_features: {n_features}")
+                n_features: {n_features}\n\
+                use_rand_smoothing: {use_rand_smoothing}")
 
         DEVICE = get_free_gpu() if torch.cuda.is_available() else "cpu"
         print(f"Putting everything in {DEVICE}")
@@ -64,20 +65,21 @@ class FFNN(BaseDREBIN):
         self.structure = structure
         self.dense = dense
         self.batch_size = 200
+        self.use_rand_smoothing = use_rand_smoothing
 
 
-    def _fit(self, X, y, rand_smoothing=False, noise=0.0):
+    def _fit(self, X, y):
         print(f"Which cuda is the model in? {next(self.model.parameters()).device}")
         if self.training == "normal":
-            self.normal_training(X, y, rand_smoothing, noise)
+            self.normal_training(X, y)
         elif self.training == "ratioed":
-            self.fifty_fifty_rationed_training(X, y, rand_smoothing, noise)
+            self.fifty_fifty_rationed_training(X, y)
         elif self.training == "only_mal":
-            self.only_malware_training(X, y, rand_smoothing, noise)
+            self.only_malware_training(X, y)
         else:
             print(f"ERROR!! No training method -{self.training}- exists!")
 
-    def only_malware_training(self, X, y, rand_smoothing=False, noise=0.0):
+    def only_malware_training(self, X, y):
         print("Only malware training")
         self.n_samples = 7500 # only malware apks
         malware_pos = []
@@ -94,7 +96,7 @@ class FFNN(BaseDREBIN):
             loss = self.train_batch(input_, labels)
             print(f"batch number = {batch}; has loss = {loss}")
 
-    def fifty_fifty_rationed_training(self, X, y, rand_smoothing=False, noise=0.0):
+    def fifty_fifty_rationed_training(self, X, y):
         print("Fifty-fifty training with class balancing")
         self.n_samples = X.shape[0]
         sm = SMOTE(sampling_strategy="minority", random_state=42, n_jobs=1)
@@ -114,7 +116,7 @@ class FFNN(BaseDREBIN):
                 X, y, test_size=1 - (n_samples / X.shape[0]), random_state=42)
         return X_train, y_train
     
-    def normal_training(self, X, y, rand_smoothing=False, noise=0.0):
+    def normal_training(self, X, y):
         print("Normal training")
         self.n_samples = X.shape[0]
         time.sleep(4)
@@ -125,10 +127,10 @@ class FFNN(BaseDREBIN):
             labels = y[batch*self.batch_size : (batch+1)*self.batch_size]
             print(f"shape of input = {input_.shape}")
             print(f"shape of labels = {labels.shape},\nlabels: {labels}")
-            loss = self.train_batch(input_, labels, rand_smoothing, noise)
+            loss = self.train_batch(input_, labels)
             print(f"batch number = {batch}; has loss = {loss}")
 
-    def train_batch(self, X, y, rand_smoothing=False, noise=0.0, **kwargs):
+    def train_batch(self, X, y, **kwargs):
         """
         X (n_examples x n_features)
         y (n_examples): gold labels
@@ -139,17 +141,9 @@ class FFNN(BaseDREBIN):
         assert X.shape[0] == y.shape[0]
         self.model.train()
 
-        if rand_smoothing:
-            print("DOING RANDOMIZED SMOOTHING")
-            X_tensor = csr_matrix_to_sparse_csr_tensor(X)
-            if self.dense:
-                X_tensor = X_tensor.to_dense()
-            noise_to_add = torch.randn_like(X_tensor) * noise
-            X_tensor += noise_to_add
-        else:
-            X_tensor = csr_matrix_to_sparse_coo_tensor(X)
-            if self.dense:
-                X_tensor = X_tensor.to_dense()
+        X_tensor = csr_matrix_to_sparse_coo_tensor(X)
+        if self.dense:
+            X_tensor = X_tensor.to_dense()
 
         print(f"Input tensor:\n{X_tensor}\n") 
         X_tensor = X_tensor.to(self.device)
@@ -231,12 +225,6 @@ class FFNN(BaseDREBIN):
             self._vectorizer = pkl.load(f)
 
         return self
-
-    def set_input_features(self, features):
-        #print(f"input_features = {self.input_features}")
-        if self.input_features == None:
-            self._vectorizer.transform(features)
-            self._input_features = (self._vectorizer.get_feature_names_out().tolist())
         
     def toString(self):
         CEL_str = "CEL" + str(self.CEL_weight_pos_class).replace(".", "") + \

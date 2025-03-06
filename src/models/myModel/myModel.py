@@ -12,7 +12,7 @@ class MyModel(BaseDREBIN, MLPClassifier):
                                  solver='sgd',
                                  batch_size=16)
 
-    def _fit(self, X, y, rand_smoothing=False, noise=0.0):
+    def _fit(self, X, y):
         self.MLP.fit(X, y)
 
     def predict(self, features):

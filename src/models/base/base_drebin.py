@@ -26,8 +26,7 @@ class BaseDREBIN(BaseModel):
             logging_level=logging.ERROR)
         self._input_features = None
 
-    def fit(self, features, y, fit=True, feat_sel=False, FS_args={},
-            rand_smoothing=False, noise=0.0):
+    def fit(self, features, y, fit=True, feat_sel=False, FS_args={}):
         """
 
         Parameters
@@ -60,7 +59,7 @@ class BaseDREBIN(BaseModel):
         #for el in self._input_features:
             #print(el)
 
-        self._fit(X, y, rand_smoothing, noise)
+        self._fit(X, y)
 
     def _fit(self, X, y):
         """
@@ -143,6 +142,12 @@ class BaseDREBIN(BaseModel):
         with open(vectorizer_path, "rb") as f:
             classifier._vectorizer = pkl.load(f)
         return classifier
+    
+    def set_input_features(self, features):
+        #print(f"input_features = {self.input_features}")
+        if self.input_features == None:
+            self._vectorizer.transform(features)
+            self._input_features = (self._vectorizer.get_feature_names_out().tolist())
 
     @property
     def input_features(self):
