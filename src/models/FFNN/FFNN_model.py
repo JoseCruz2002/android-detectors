@@ -15,12 +15,14 @@ from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from models.base import BaseDREBIN
 from models.FFNN import FeedForwardNN
+from models.random_attack import RandomAttack
 
 class FFNN(BaseDREBIN):
 
     def __init__(self, training="normal", structure="small", use_CEL=False,
                  CEL_weight_pos_class=0.1,  CEL_weight_neg_class=0.9, dense=False,
-                 n_features=1461078, vocabulary=None, use_rand_smoothing=False):
+                 n_features=1461078, vocabulary=None, use_rand_smoothing=False,
+                 noise=0):
         '''
         features: iterable of iterables of strings
             Iterable of shape (n_samples, n_features) containing textual
@@ -35,7 +37,8 @@ class FFNN(BaseDREBIN):
                   CEL_weight_neg_class: {CEL_weight_neg_class}\n\
                 dense: {dense}\n\
                 n_features: {n_features}\n\
-                use_rand_smoothing: {use_rand_smoothing}")
+                use_rand_smoothing: {use_rand_smoothing}\n\
+                    noise: {noise}")
 
         DEVICE = get_free_gpu() if torch.cuda.is_available() else "cpu"
         print(f"Putting everything in {DEVICE}")
@@ -66,6 +69,7 @@ class FFNN(BaseDREBIN):
         self.dense = dense
         self.batch_size = 200
         self.use_rand_smoothing = use_rand_smoothing
+        self.noise = noise
 
 
     def _fit(self, X, y):
@@ -179,11 +183,43 @@ class FFNN(BaseDREBIN):
             score of each test pattern with respect to the positive class.
         """
         self.model.eval()
-        X = self._vectorizer.transform(features)
-        X_tensor = csr_matrix_to_sparse_coo_tensor(X).to(self.device)
-        scores = torch.nn.functional.softmax(self.model(X_tensor), dim=1)
-        predicted_labels = scores.argmax(dim=-1)  # (n_examples)
-        return predicted_labels, scores.max(dim=1)[0]
+        if not self.use_rand_smoothing:
+            X = self._vectorizer.transform(features)
+            X_tensor = csr_matrix_to_sparse_coo_tensor(X).to(self.device)
+            scores = torch.nn.functional.softmax(self.model(X_tensor), dim=1)
+            predicted_labels = scores.argmax(dim=-1)  # (n_examples)
+            return predicted_labels, scores.max(dim=1)[0]
+        else:
+            # Perform majority voting
+            attack = RandomAttack()
+            voted_labels = []
+            voted_scores = []
+            k = 0
+            for sample in features:
+                k += 1
+                if k ==10:
+                    break
+                sample_bubble = []
+                for i in range(100):
+                    sample_bubble += [attack.RS_sample_modification(sample, self.noise,
+                                                                    self.input_features)]
+                sample_bubble_trans = self.vectorizer.transform(sample_bubble)
+                X_tensor = csr_matrix_to_sparse_coo_tensor(sample_bubble_trans).to(self.device)
+                scores = torch.nn.functional.softmax(self.model(X_tensor), dim=1)
+                predicted_labels = scores.argmax(dim=-1)
+                print(f"shape of scores: {scores.shape}, shape of predicted_labels: {predicted_labels.shape}")
+                vot_label = predicted_labels.mode()[0].item()
+                voted_labels += [vot_label]
+                print(f"voted_labels: {voted_labels}")
+                if vot_label == 0:
+                    scores = scores[scores < 0.5]
+                else:
+                    scores = scores[scores >= 0.5]
+                print(f"scores: {scores}")
+                print("--------------------------")
+                voted_scores += [scores.mean().item() if scores.numel() > 0 else torch.tensor(0.0)]
+            return numpy.array(voted_labels), numpy.array(voted_scores)
+            
 
     def classify(self, apk_list):
         """
@@ -223,6 +259,7 @@ class FFNN(BaseDREBIN):
 
         with open(vectorizer_path, "rb") as f:
             self._vectorizer = pkl.load(f)
+            self.set_input_features(self._vectorizer.get_feature_names_out().tolist())
 
         return self
         
